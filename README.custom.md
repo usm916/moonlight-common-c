@@ -9,7 +9,7 @@ Sunshine CustomとMoonlight Qt Customで使用する共通通信ライブラリ�
 - ホスト: [usm916/Sunshine](https://github.com/usm916/Sunshine/tree/custom/main)
 - クライアント: [usm916/moonlight-qt](https://github.com/usm916/moonlight-qt/tree/custom/main)
 
-初期段階では本流の通信処理を維持しています。クリップボード同期の実装はまだ含まれません。[テキスト同期の共通仕様案](docs/custom/clipboard-v1.md)を両側の実装の基準とします。
+`feature/clipboard-text`にテキスト同期の通信実装を追加しました。[共通仕様](docs/custom/clipboard-v1.md)を両側の基準とします。実験機能として既定OFFで提供します。
 
 ## 変更と取り込み
 
@@ -35,3 +35,4 @@ git push origin custom/main
 `YYYYMMDD`は実施日へ置き換えます。公開済みの統合ブランチをrebaseしません。ENetとnanorsは本流が固定したコミットを使い、`submodule update --remote`で無条件に変更しません。
 
 ホストとクライアントで同じ共通ライブラリを使っていても、Sunshineのサーバー実装がライブラリのクライアント処理をそのまま利用するわけではありません。メッセージ定義、検証ルール、テスト用データを共通化し、実際のクリップボード取得・反映とサーバー側の送受信は各プロジェクトで担当します。
+
