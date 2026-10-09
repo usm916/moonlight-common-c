@@ -723,7 +723,7 @@ static bool sendMessageEnet(short ptype, int paylen, const void* payload, uint8_
         char stackBuffer[256];
         char* plainBuffer = stackBuffer;
 
-        if (paylen < 0 || paylen > 65535) {
+        if (paylen < 0 || paylen > 65535 - (int)sizeof(encPacket->seq) - AES_GCM_TAG_LENGTH - (int)sizeof(*packet)) {
             return false;
         }
 
@@ -740,7 +740,7 @@ static bool sendMessageEnet(short ptype, int paylen, const void* payload, uint8_
 
         encPacket = (PNVCTL_ENCRYPTED_PACKET_HEADER)enetPacket->data;
         encPacket->encryptedHeaderType = 0x0001;
-        encPacket->length = sizeof(encPacket->seq) + AES_GCM_TAG_LENGTH + sizeof(*packet) + paylen;
+        encPacket->length = (unsigned short)(sizeof(encPacket->seq) + AES_GCM_TAG_LENGTH + sizeof(*packet) + paylen);
         encPacket->seq = currentEnetSequenceNumber++;
 
         // Construct the plaintext data for encryption. Large clipboard packets
