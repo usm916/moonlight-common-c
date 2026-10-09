@@ -1014,7 +1014,7 @@ int LiSendClipboardText(const char *text, unsigned int length) {
         return -1;
     }
 
-    if (length > SS_CLIPBOARD_TEXT_MAX || (length > 0 && text == NULL)) {
+    if (!SsClipboardTextValid(text, length)) {
         return -1;
     }
 

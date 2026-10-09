@@ -379,13 +379,23 @@ static void freeBasicLbqList(PLINKED_BLOCKING_QUEUE_ENTRY entry) {
 
 // Cleans up control stream
 void destroyControlStream(void) {
+    PLINKED_BLOCKING_QUEUE_ENTRY entry;
     LC_ASSERT(stopping);
     PltDestroyCryptoContext(encryptionCtx);
     PltDestroyCryptoContext(decryptionCtx);
     PltCloseEvent(&idrFrameRequiredEvent);
     freeBasicLbqList(LbqDestroyLinkedBlockingQueue(&referenceFrameControlQueue));
     freeBasicLbqList(LbqDestroyLinkedBlockingQueue(&frameFecStatusQueue));
-    freeBasicLbqList(LbqDestroyLinkedBlockingQueue(&asyncCallbackQueue));
+    entry = LbqDestroyLinkedBlockingQueue(&asyncCallbackQueue);
+    while (entry != NULL) {
+        PLINKED_BLOCKING_QUEUE_ENTRY next = entry->flink;
+        PQUEUED_ASYNC_CALLBACK cb = entry->data;
+        if (cb->typeIndex == IDX_CLIPBOARD_TEXT) {
+            free(cb->data.clipboardText.text);
+        }
+        free(cb);
+        entry = next;
+    }
 
     PltDeleteMutex(&enetMutex);
 }
@@ -1125,9 +1135,11 @@ static void queueAsyncCallback(PNVCTL_ENET_PACKET_HEADER_V1 ctlHdr, int packetLe
         queuedCb->typeIndex = IDX_DS_ADAPTIVE_TRIGGERS;
     }
     else if (ctlHdr->type == SS_CLIPBOARD_CONTROL_PTYPE) {
-        if (!BbGet32(&bb, &queuedCb->data.clipboardText.token) ||
-                !BbGet32(&bb, &queuedCb->data.clipboardText.length) ||
-                queuedCb->data.clipboardText.length > SS_CLIPBOARD_TEXT_MAX) {
+        const char* text;
+        if (!encryptedControlStream || packetLength < (int)sizeof(*ctlHdr) ||
+                !SsClipboardDecode((const unsigned char*)bb.buffer, bb.length,
+                                   &queuedCb->data.clipboardText.token, &text,
+                                   &queuedCb->data.clipboardText.length)) {
             free(queuedCb);
             return;
         }
@@ -1138,12 +1150,7 @@ static void queueAsyncCallback(PNVCTL_ENET_PACKET_HEADER_V1 ctlHdr, int packetLe
             return;
         }
 
-        if (queuedCb->data.clipboardText.length > 0 &&
-                !BbGetBytes(&bb, (uint8_t*)queuedCb->data.clipboardText.text, (int)queuedCb->data.clipboardText.length)) {
-            free(queuedCb->data.clipboardText.text);
-            free(queuedCb);
-            return;
-        }
+        memcpy(queuedCb->data.clipboardText.text, text, queuedCb->data.clipboardText.length);
 
         queuedCb->data.clipboardText.text[queuedCb->data.clipboardText.length] = '\0';
         queuedCb->typeIndex = IDX_CLIPBOARD_TEXT;

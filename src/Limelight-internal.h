@@ -1,4 +1,5 @@
 #pragma once
+#include "Clipboard.h"
 
 #include "Platform.h"
 #include "Limelight.h"
