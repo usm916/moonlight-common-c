@@ -720,8 +720,6 @@ static bool sendMessageEnet(short ptype, int paylen, const void* payload, uint8_
     if (encryptedControlStream) {
         PNVCTL_ENCRYPTED_PACKET_HEADER encPacket;
         PNVCTL_ENET_PACKET_HEADER_V2 packet;
-        char stackBuffer[256];
-        char* plainBuffer = stackBuffer;
 
         if (paylen < 0 || paylen > 65535 - (int)sizeof(encPacket->seq) - AES_GCM_TAG_LENGTH - (int)sizeof(*packet)) {
             return false;
@@ -743,17 +741,8 @@ static bool sendMessageEnet(short ptype, int paylen, const void* payload, uint8_
         encPacket->length = (unsigned short)(sizeof(encPacket->seq) + AES_GCM_TAG_LENGTH + sizeof(*packet) + paylen);
         encPacket->seq = currentEnetSequenceNumber++;
 
-        // Construct the plaintext data for encryption. Large clipboard packets
-        // do not fit in the stack buffer.
-        if ((int)sizeof(*packet) + paylen > (int)sizeof(stackBuffer)) {
-            plainBuffer = malloc(sizeof(*packet) + paylen);
-            if (plainBuffer == NULL) {
-                enet_packet_destroy(enetPacket);
-                PltUnlockMutex(&enetMutex);
-                return false;
-            }
-        }
-        packet = (PNVCTL_ENET_PACKET_HEADER_V2)plainBuffer;
+        // Construct the plaintext data for encryption
+        packet = (PNVCTL_ENET_PACKET_HEADER_V2)(((unsigned char*)(encPacket + 1)) + AES_GCM_TAG_LENGTH);
         packet->type = ptype;
         packet->payloadLength = (unsigned short)paylen;
         memcpy(&packet[1], payload, paylen);
@@ -761,15 +750,9 @@ static bool sendMessageEnet(short ptype, int paylen, const void* payload, uint8_
         // Encrypt the data into the final packet (and byteswap for BE machines)
         if (!encryptControlMessage(encPacket, packet)) {
             Limelog("Failed to encrypt control stream message\n");
-            if (plainBuffer != stackBuffer) {
-                free(plainBuffer);
-            }
             enet_packet_destroy(enetPacket);
             PltUnlockMutex(&enetMutex);
             return false;
-        }
-        if (plainBuffer != stackBuffer) {
-            free(plainBuffer);
         }
 
         // enetMutex still locked here
@@ -1463,7 +1446,7 @@ static void lossStatsThreadFunc(void* context) {
         char periodicPingPayload[8];
 
         BbInitializeWrappedBuffer(&byteBuffer, periodicPingPayload, 0, sizeof(periodicPingPayload), BYTE_ORDER_LITTLE);
-        BbPut16(&byteBuffer, 4); // Length of payload
+        BbPut32(&byteBuffer, 4); // Length of payload
         BbPut32(&byteBuffer, 0); // Timestamp?
 
         while (!PltIsThreadInterrupted(&lossStatsThread)) {
